@@ -27,6 +27,8 @@ print "Order file path : $orderfile\n";
 
 #init vars
 
+my $nonexistentcancel = 0;
+
 my ($ticker, $time, $id, $price, $volume, $otype, $BSflag) = ();
 my ($tradeTicker, $tradeTime, $nID, $tradePrice, $tradeVolume, $turnover, $tradeBSflag, $orderKind, $functionCode, $askOrder, $bidOrder) = ();
 #!price volume id
@@ -227,6 +229,9 @@ sub processLine{
                     if($price == $BSO){
                         $BBO = getBBO();
                         $BSO = getBSO();
+                        if($BBO == $BSO){
+                            return;
+                        }
                         print "Added to BBO list : ";
                         print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
                         push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
@@ -252,6 +257,9 @@ sub processLine{
                     if($price == $BBO){
                         $BBO = getBBO();
                         $BSO = getBSO();
+                        if($BBO == $BSO){
+                            return;
+                        }
                         print "Added to BBO list : ";
                         print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
                         push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
@@ -268,6 +276,12 @@ sub processLine{
                     foreach my $price (keys %{$OPEN_ORDERS->{$flag}}){
                         foreach my $id (keys %{$OPEN_ORDERS->{$flag}->{$price}}){
                             if($id == $askOrder || $id == $bidOrder){
+                                if(!defined $OPEN_ORDERS->{$flag}->{$price}->{$id}){
+                                    $nonexistentcancel = $nonexistentcancel + 1;
+                                    print "Order ID was nonexistent!!! Total: ";
+                                    print $nonexistentcancel;
+                                    print "\n";
+                                }
                                 delete $OPEN_ORDERS->{$flag}->{$price}->{$id};
 
                                 print "Order cancelled.\n";
