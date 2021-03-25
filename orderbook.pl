@@ -226,7 +226,7 @@ sub processLine{
                         $OPEN_ORDERS->{"B"}->{$buy_order_info[0]}->{$bidOrder} = "$buy_order_info[0] $updated_volume";
                     }
 
-                    if($price == $BSO){
+                    if($price >= $BSO){
                         $BBO = getBBO();
                         $BSO = getBSO();
                         if($BBO >= $BSO){
@@ -254,7 +254,7 @@ sub processLine{
                         my $updated_volume = $sell_order_info[1] - $tradeVolume;
                         $OPEN_ORDERS->{"S"}->{$sell_order_info[0]}->{$askOrder} = "$sell_order_info[0] $updated_volume";
                     }
-                    if($price == $BBO){
+                    if($price <= $BBO){
                         $BBO = getBBO();
                         $BSO = getBSO();
                         if($BBO >= $BSO){
@@ -362,6 +362,10 @@ sub processLine{
                         if($price == $BBO || $price <= $BSO){
                             $BBO = getBBO();
                             $BSO = getBSO();
+                            if($BBO >= $BSO){
+                                print "Order added.\n";
+                                return;
+                            }
                             if(!($BBO == $BSO)){
                                 print "Added to BBO list : ";
                                 print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
@@ -374,8 +378,15 @@ sub processLine{
                     if($BSflag eq "B"){
                         $OPEN_ORDERS->{"B"}->{$price}->{$id} = "$price $volume";
                         if($price >= $BBO || $price == $BSO){
+                            
                             $BBO = getBBO();
                             $BSO = getBSO();
+
+                            if($BBO >= $BSO){
+                                print "Order added.\n";
+                                return;
+                            }
+
                             if(!($BBO == $BSO)){
                                 print "Added to BBO list : ";
                                 print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
