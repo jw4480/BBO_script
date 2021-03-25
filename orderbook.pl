@@ -229,7 +229,7 @@ sub processLine{
                     if($price == $BSO){
                         $BBO = getBBO();
                         $BSO = getBSO();
-                        if($BBO == $BSO){
+                        if($BBO >= $BSO){
                             return;
                         }
                         print "Added to BBO list : ";
@@ -257,7 +257,7 @@ sub processLine{
                     if($price == $BBO){
                         $BBO = getBBO();
                         $BSO = getBSO();
-                        if($BBO == $BSO){
+                        if($BBO >= $BSO){
                             return;
                         }
                         print "Added to BBO list : ";
@@ -280,6 +280,8 @@ sub processLine{
                                     $nonexistentcancel = $nonexistentcancel + 1;
                                     print "Order ID was nonexistent!!! Total: ";
                                     print $nonexistentcancel;
+                                    print "ID: ";
+                                    print $id;
                                     print "\n";
                                 }
                                 delete $OPEN_ORDERS->{$flag}->{$price}->{$id};
@@ -292,10 +294,17 @@ sub processLine{
                                     print "$tradeTime,$tradeTicker,C,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
                                     push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,C,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
                                 }
+                                return;
                             }
                         }
                     }
                 }
+                $nonexistentcancel = $nonexistentcancel + 1;
+                print "Order ID was nonexistent!!! Total: ";
+                print $nonexistentcancel;
+                print "ID: ";
+                print $id;
+                print "\n";
             }
         }
 
