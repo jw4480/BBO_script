@@ -1,0 +1,13 @@
+//timestamp,symbol,type,price,qty,bid,bidsize,ask,asksize,bidRef,askRef,flag
+000000.025840,YMM1,O,30884,1,30876,2,30884,2,0,12345,S
+000000.025840,YMM1,O,30876,1,30876,3,30884,2,54321,0,B
+000000.025840,YMM1,T,30884,1,30876,3,30884,1,89889,12345,B
+
+
+BBO order forces the BBO to change
+
+Market order only eat the current BBO orders
+
+9:15 - 9:25 : 
+
+turnOver = quantity * price

@@ -1,0 +1,32 @@
+1: Ticker
+2: timestamp
+3: New trade ID
+4: price
+5: volume
+6: Turnover = price / quantity
+7: chBSFlag = B or S or Empty
+8: chOrderKind: always 0
+9: chFunctionCode: 0 = trade, C = cancel
+10: order ID of the trade it matched with (ASK order)
+11: order ID of the trade (BID order)
+
+
+2319,93305310,1297002,69800,100,698,B,0,0,939681,1297001
+
+2319,95116980,4815946,69600,1000,6960,S,0,0,4815945,4815613
+
+2319,93321660,1367351,0,3000,0, ,0,C,836015,0
+
+Cancelled trade format
+
+1: Ticker
+2: timestamp
+3: New trade ID
+4: price
+5: volume
+6: Turnover = price / 100
+7: chBSFlag = always Empty
+8: chOrderKind: always 0
+9: chFunctioncode: always C 
+10: order ID that was Cancelled (ASK order)
+11: always 0 as no order was filled(BID order)
