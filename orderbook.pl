@@ -229,9 +229,9 @@ sub processLine{
                     if($price >= $BSO){
                         $BBO = getBBO();
                         $BSO = getBSO();
-                        if($BBO >= $BSO){
-                            return;
-                        }
+                        # if($BBO >= $BSO){
+                        #     return;
+                        # }
                         print "Added to BBO list : ";
                         print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
                         push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
@@ -257,9 +257,9 @@ sub processLine{
                     if($price <= $BBO){
                         $BBO = getBBO();
                         $BSO = getBSO();
-                        if($BBO >= $BSO){
-                            return;
-                        }
+                        # if($BBO >= $BSO){
+                        #     return;
+                        # }
                         print "Added to BBO list : ";
                         print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
                         push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
