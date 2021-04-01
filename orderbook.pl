@@ -28,6 +28,8 @@ print "Order file path : $orderfile\n";
 #init vars
 
 my $nonexistentcancel = 0;
+my $firstsell = 1;
+my $firstbuy = 1;
 
 my ($ticker, $time, $id, $price, $volume, $otype, $BSflag) = ();
 my ($tradeTicker, $tradeTime, $nID, $tradePrice, $tradeVolume, $turnover, $tradeBSflag, $orderKind, $functionCode, $askOrder, $bidOrder) = ();
@@ -359,6 +361,12 @@ sub processLine{
                 }else{
                     if($BSflag eq "S"){
                         $OPEN_ORDERS->{"S"}->{$price}->{$id} = "$price $volume";
+                        if($firstsell == 1){
+                                print "Added to BBO list : ";
+                                print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
+                                push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
+                                $firstsell = 0;
+                        }
                         if($price == $BBO || $price <= $BSO){
                             $BBO = getBBO();
                             $BSO = getBSO();
@@ -372,11 +380,20 @@ sub processLine{
                                 push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
                             }
 
+                            
+
                         }
+                        print "Order added.\n";
 
                     }
                     if($BSflag eq "B"){
                         $OPEN_ORDERS->{"B"}->{$price}->{$id} = "$price $volume";
+                        if($firstbuy == 1){
+                                print "Added to BBO list : ";
+                                print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
+                                push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
+                                $firstbuy = 0;
+                        }
                         if($price >= $BBO || $price == $BSO){
                             
                             $BBO = getBBO();
@@ -392,10 +409,11 @@ sub processLine{
                                 print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
                                 push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
                             }
+                            
 
                         }
+                        print "Order added.\n";
                     }
-                    print "Order added.\n";
                 }
             }
         }
