@@ -3,8 +3,25 @@
 #source ~gdmops/mm/utils.sh
 
 ticker=$1
-orderfile="/home/justin/BBO_script/$ticker.order"
-tradefile="/home/justin/BBO_script/$ticker.trade"
+date=$2
+debug=$3
+path=$4
 
-#cat $orderfile | perl /home/justin/BBO_script/gen_simple.pl --ticker=$ticker --tradefile=$tradefile
-perl /home/justin/BBO_script/orderbook.pl --tradefile=$tradefile --orderfile=$orderfile --debug
+if [ -z "$path" ]
+then
+    orderfile="~/order.$ticker.$date"
+    tradefile="~/trade.$ticker.$date"
+    path="~"
+else
+    orderfile="$path/order.$ticker.$date"
+    tradefile="$path/trade.$ticker.$date" 
+fi
+
+
+if [[ $debug -eq 1 ]]
+then
+    perl $path/orderbook.pl --ticker=$ticker --date=$date --tradefile=$tradefile --orderfile=$orderfile --path=$path --debug
+else
+    perl $path/orderbook.pl --ticker=$ticker --date=$date --tradefile=$tradefile --orderfile=$orderfile --path=$path
+fi
+

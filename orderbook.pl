@@ -3,27 +3,32 @@ use warnings;
 use POSIX;
 use Getopt::Long;
 use Data::Dumper;
-
+use Term::ANSIColor;
 #TODO
 #Report error if Market order volume is bigger than total trade volume
 #Count total of nonexistent order cancellations
 
 #init argvs
 
-#my $ticker_ref;
+my $ticker_ref;
+my $date_ref;
 my $tradefile;
 my $orderfile;
 my $debug;
+my $path;
 
 GetOptions (
-            #'ticker:s' => \$ticker_ref,
+            'ticker:s' => \$ticker_ref,
+            'date=i' => \$date_ref,
             'tradefile:s' => \$tradefile,
             'orderfile:s' => \$orderfile,
+            'path:s' => \$path,
             'debug' => \$debug,
           );
-
-print "Trade file path : $tradefile\n";
-print "Order file path : $orderfile\n";
+if($debug){
+    print "Trade file path : $tradefile\n";
+    print "Order file path : $orderfile\n";
+}
 
 #init vars
 
@@ -55,7 +60,23 @@ sub findOrder{
         }
     }
 }
+sub convertTime{
+    my $time = shift;
+    my $hour = $time;
+    $hour = substr($hour, 0, -3);
+    my $ms = substr($time, -3);
+    if(length($time) == 8){
+	return "0$hour.$ms";
+    }else{
+	return "$hour.$ms";
+    }
+}
+sub convertPrice{
+	my $price_ref = shift;
+	my $new_price = sprintf('%.2f',$price_ref / 10000);
+	return $new_price
 
+}
 sub getTotal{
     my $ref_flag = shift;
     my $ref_price = shift;
@@ -149,7 +170,7 @@ sub convertHashes{
         
     }
 
-    print "Done converting hashes.\n";
+    #print "Done converting hashes.\n";
 }
 
 sub sortArrays{
@@ -157,17 +178,19 @@ sub sortArrays{
     @OPEN_SELL_ORDERS = reverse sort { $a <=> $b } @OPEN_SELL_ORDERS;
     @OPEN_BUY_ORDERS = reverse sort { $a <=> $b } @OPEN_BUY_ORDERS;
     use warnings;
-    print "Done sorting arrays.\n";
+    #print "Done sorting arrays.\n";
 }
 sub printBBOlist{
-    print "timestamp,symbol,type,price,qty,bid,bidsize,ask,asksize,bidRef,askRef,flag\n";
+    print "timestamp,symbol,type,price,qty,flag,bid,bidsize,ask,asksize\n";
     foreach my $val (@BBO_UPDATED_ORDERS){
         print $val;
     }
 }
 
 sub exportBBOlist{
-    open(BBO, '>', 'BBOlist') or die $!;
+    open(BBO, '>', "$path/bbo.$ticker_ref.$date_ref") or die $!;
+    my $format = "//timestamp,symbol,type,price,qty,side,bid,bidsize,ask,asksize\n";
+    print BBO $format;
     foreach my $val (@BBO_UPDATED_ORDERS){
         print BBO $val;
     }
@@ -175,18 +198,32 @@ sub exportBBOlist{
 }
 
 sub printOrderbook{
+    my $counter = 0;
+    my $levels = 10;
     printf("%10s\t%10s\t%10s\t\n", "COUNT" ,"PRICE" ,"VOLUME");
     printf("SELL========================================================================================\n");
-    foreach my $val (@OPEN_SELL_ORDERS){
-        my @line = split(' ', $val);
-        printf("%10d\t%10d\t%10d\t\n", $line[2], $line[0], $line[1]);
+    if(scalar @OPEN_SELL_ORDERS <= 10){
+    	foreach my $val (@OPEN_SELL_ORDERS){
+        	my @line = split(' ', $val);
+        	printf("%10d\t%.2f\t%10d\t\n", $line[2], convertPrice($line[0]), $line[1]);
+        	$counter = $counter + 1;
+    	}
+    }else{
+    	for (my $i = $levels * -1; $i <= -1; $i++){
+		my @line = split(' ', $OPEN_SELL_ORDERS[$i]);
+		printf("%10d\t%.2f\t%10d\t\n", $line[2], convertPrice($line[0]), $line[1]);
+    	}
     }
-
+    $counter = 0;
     printf("BUY========================================================================================\n");
 
     foreach my $val (@OPEN_BUY_ORDERS){
+        if($counter == 10){
+            last;
+        }
         my @line = split(' ', $val);
-        printf("%10d\t%10d\t%10d\t\n", $line[2], $line[0], $line[1]);
+        printf("%10d\t%.2f\t%10d\t\n", $line[2], convertPrice($line[0]), $line[1]);
+        $counter = $counter + 1;
     }
 }
 
@@ -207,7 +244,10 @@ sub processLine{
             
             #print "$tradeTicker, $tradeTime, $nID, $tradePrice, $tradeVolume, $turnover, $tradeBSflag, $orderKind, $functionCode, $askOrder, $bidOrder\n";
             if(($tradeTime >= 93000000 && $tradeTime <= 113000000) || ($tradeTime >= 130000000 && $tradeTime <= 150000000) || ($tradeTime >= 91500000 && $tradeTime <= 92500000)){
-                print "Order executed.\n";
+                $tradeTime = convertTime($tradeTime);
+                if($debug){
+                    print "Order executed.\n";
+                }
                 my @sell_order_info = split(' ', findOrder($askOrder));
                 my @buy_order_info = split(' ', findOrder($bidOrder));
                 if($tradeBSflag eq "B"){
@@ -228,15 +268,27 @@ sub processLine{
                         $OPEN_ORDERS->{"B"}->{$buy_order_info[0]}->{$bidOrder} = "$buy_order_info[0] $updated_volume";
                     }
 
-                    if($price >= $BSO){
+                    if($tradePrice == $BSO){
                         $BBO = getBBO();
                         $BSO = getBSO();
-                        # if($BBO >= $BSO){
-                        #     return;
-                        # }
-                        print "Added to BBO list : ";
-                        print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
-                        push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
+                        $tradePrice = convertPrice($tradePrice);
+			if(!($BBO >= $BSO)){
+                            if($debug){
+                                print "Added to BBO list : ";
+                                print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                                print "Added Quote to BBO list : ";
+				print "$tradeTime,$tradeTicker,Q,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                            }
+                            push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                            push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,Q,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                        }else{
+			    if($debug){
+				print "Added to BBO list : ";
+				print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+			    }
+			    push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+			}
+                        
                     }
 
                 }else{    
@@ -256,15 +308,27 @@ sub processLine{
                         my $updated_volume = $sell_order_info[1] - $tradeVolume;
                         $OPEN_ORDERS->{"S"}->{$sell_order_info[0]}->{$askOrder} = "$sell_order_info[0] $updated_volume";
                     }
-                    if($price <= $BBO){
+                    if($tradePrice == $BBO){
                         $BBO = getBBO();
                         $BSO = getBSO();
-                        # if($BBO >= $BSO){
-                        #     return;
-                        # }
-                        print "Added to BBO list : ";
-                        print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
-                        push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
+			$tradePrice = convertPrice($tradePrice);
+                        if(!($BBO >= $BSO)){
+                            if($debug){
+                                print "Added to BBO list : ";
+                                print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+				print "Added Quote to BBO list : ";                                
+				print "$tradeTime,$tradeTicker,Q,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                            }
+                            push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                            push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,Q,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                        }else{
+			    if($debug){
+				print "Added to BBO list : ";
+				print "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+			    }
+			    push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,T,$tradePrice,$tradeVolume,$tradeBSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+			}
+                        
                     }
                 }
             }
@@ -274,28 +338,38 @@ sub processLine{
             ($tradeTicker, $tradeTime, $nID, $tradePrice, $tradeVolume, $turnover, $tradeBSflag, $orderKind, $functionCode, $askOrder, $bidOrder) = ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
             
             if(($tradeTime >= 93000000 && $tradeTime <= 113000000) || ($tradeTime >= 130000000 && $tradeTime <= 150000000) || ($tradeTime >= 91500000 && $tradeTime <= 92500000)){
+                $tradeTime = convertTime($tradeTime);
                 foreach my $flag (keys %{$OPEN_ORDERS}){
                     foreach my $price (keys %{$OPEN_ORDERS->{$flag}}){
                         foreach my $id (keys %{$OPEN_ORDERS->{$flag}->{$price}}){
                             if($id == $askOrder || $id == $bidOrder){
                                 if(!defined $OPEN_ORDERS->{$flag}->{$price}->{$id}){
                                     $nonexistentcancel = $nonexistentcancel + 1;
-                                    print "Order ID was nonexistent!!! Total: ";
-                                    print $nonexistentcancel;
-                                    print "ID: ";
-                                    print $id;
-                                    print "\n";
+                                    if($debug){
+                                        print "Order ID was nonexistent!!! Total: ";
+                                        print $nonexistentcancel;
+                                        print "ID: ";
+                                        print $id;
+                                        print "\n";
+                                    }
                                 }
                                 delete $OPEN_ORDERS->{$flag}->{$price}->{$id};
-
-                                print "Order cancelled.\n";
+                                if($debug){
+                                    print "Order cancelled.\n";
+                                }
+                                
                                 if($price == $BBO || $price == $BSO){
                                     $BBO = getBBO();
                                     $BSO = getBSO();
-                                    print "Added to BBO list : ";
-                                    print "$tradeTime,$tradeTicker,C,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
-                                    push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,C,$tradePrice,$tradeVolume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$bidOrder,$askOrder,$tradeBSflag\n";
+				    $price = convertPrice($price);
+                                    if($debug){
+                                        print "Added Quote to BBO list : ";
+                                        print "$tradeTime,$tradeTicker,Q,$price,$tradeVolume,$flag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                                    }
+                                    push @BBO_UPDATED_ORDERS, "$tradeTime,$tradeTicker,Q,$price,$tradeVolume,$flag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                                 }
+
+                                
                                 return;
                             }
                         }
@@ -319,8 +393,11 @@ sub processLine{
             my $BBO = getBBO();
             my $BSO = getBSO();
             if(($time >= 93000000 && $time <= 113000000) || ($time >= 130000000 && $time <= 150000000) || ($time >= 91500000 && $time <= 92500000)){    
+                $time = convertTime($time);
                 if($otype eq "U"){
-                    print "BBO order added.\n";
+                    if($debug){
+                        print "BBO order added.\n";
+                    }
                     if($BSflag eq "B"){
                         $OPEN_ORDERS->{"B"}->{$price}->{$id} = "$price $volume";
                     }else{
@@ -328,91 +405,126 @@ sub processLine{
                     }
                     $BBO = getBBO();
                     $BSO = getBSO();
-                    print "Added to BBO list : ";
-                    print "$time,$ticker,U,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
-                    push @BBO_UPDATED_ORDERS, "$time,$ticker,U,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
+		    $price = convertPrice($price);
+                    if($debug){
+                        print "Added Quote to BBO list : ";
+                        print "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                    }
+                    push @BBO_UPDATED_ORDERS, "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                     
                     
                 }elsif($otype eq "1"){
-                    print "Market order added.\n";
-                    
+                    if($debug){
+                        print "Market order added.\n";
+                    }
                     if($BSflag eq "B"){
                         # print "BSO: ";
                         # print getBSO();
                         # print "\n";
-                        $OPEN_ORDERS->{"B"}->{"0"}->{$id} = "0 $volume";
-                        # $BBO = getBBO();
-                        # $BSO = getBSO();
-                        # print "Added to BBO list : ";
-                        # print "$time,$ticker,M,$BSO,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
-                        # push @BBO_UPDATED_ORDERS, "$time,$ticker,M,$BSO,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
+                        
+                        $OPEN_ORDERS->{"B"}->{$BBO}->{$id} = "$BBO $volume";
+                        $BBO = getBBO();
+                        $BSO = getBSO();
+                        if($debug){
+                            print "Added to BBO list : ";
+                            print "$time,$ticker,Q," . convertPrice($BBO) . ",$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                        }
+                        push @BBO_UPDATED_ORDERS, "$time,$ticker,Q," . convertPrice($BBO) . ",$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                     }else{
                         # print "BBO: ";
                         # print getBBO();
                         # print "\n";
-                        $OPEN_ORDERS->{"S"}->{"0"}->{$id} = "0 $volume";
-                        # $BBO = getBBO();
-                        # $BSO = getBSO();
-                        # print "Added to BBO list : ";
-                        # print "$time,$ticker,M,$BBO,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
-                        # push @BBO_UPDATED_ORDERS, "$time,$ticker,M,$BBO,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
+                        $OPEN_ORDERS->{"S"}->{$BSO}->{$id} = "$BSO $volume";
+                        $BBO = getBBO();
+                        $BSO = getBSO();
+                        if($debug){
+                            print "Added Quote to BBO list : ";
+                            print "$time,$ticker,Q," . convertPrice($BSO) . ",$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                        }
+                        push @BBO_UPDATED_ORDERS, "$time,$ticker,Q," . convertPrice($BSO) . ",$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                         
                     }
                 }else{
                     if($BSflag eq "S"){
                         $OPEN_ORDERS->{"S"}->{$price}->{$id} = "$price $volume";
                         if($firstsell == 1){
-                                print "Added to BBO list : ";
-                                print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
-                                push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
+				$BBO = getBBO();
+				$BSO = getBSO();
+				$price = convertPrice($price);
+                                if($debug){
+                                    print "Added Quote to BBO list : ";
+                                    print "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                                }
+                                push @BBO_UPDATED_ORDERS, "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                                 $firstsell = 0;
+                                return;
                         }
                         if($price == $BBO || $price <= $BSO){
                             $BBO = getBBO();
                             $BSO = getBSO();
+			    $price = convertPrice($price);
                             if($BBO >= $BSO){
-                                print "Order added.\n";
+                                if($debug){
+                                    print "Order added.\n";
+                                }
                                 return;
                             }
                             if(!($BBO == $BSO)){
-                                print "Added to BBO list : ";
-                                print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
-                                push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",0,$id,$BSflag\n";
+                                if($debug){
+                                    print "Added Quote to BBO list : ";
+                                    print "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                                }
+                                push @BBO_UPDATED_ORDERS, "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                             }
 
                             
 
                         }
-                        print "Order added.\n";
+                        if($debug){
+                            print "Order added.\n";
+                        }
 
                     }
                     if($BSflag eq "B"){
                         $OPEN_ORDERS->{"B"}->{$price}->{$id} = "$price $volume";
                         if($firstbuy == 1){
-                                print "Added to BBO list : ";
-                                print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
-                                push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
+				$BBO = getBBO();
+				$BSO = getBSO();
+				$price = convertPrice($price);
+                                if($debug){
+                                    print "Added Quote BBO list : ";
+                                    print "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                                }
+                                push @BBO_UPDATED_ORDERS, "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                                 $firstbuy = 0;
+                                return;
                         }
                         if($price >= $BBO || $price == $BSO){
                             
                             $BBO = getBBO();
                             $BSO = getBSO();
+			    $price = convertPrice($price);
 
                             if($BBO >= $BSO){
-                                print "Order added.\n";
+                                if($debug){
+                                    print "Order added.\n";
+                                }
                                 return;
                             }
 
                             if(!($BBO == $BSO)){
-                                print "Added to BBO list : ";
-                                print "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
-                                push @BBO_UPDATED_ORDERS, "$time,$ticker,O,$price,$volume,$BBO," . getTotal("B", $BBO) . ",$BSO," . getTotal("S", $BSO) . ",$id,0,$BSflag\n";
+                                if($debug){
+                                    print "Added Quote to BBO list : ";
+                                    print "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
+                                }
+                                push @BBO_UPDATED_ORDERS, "$time,$ticker,Q,$price,$volume,$BSflag," . convertPrice($BBO) . "," . getTotal("B", $BBO) . "," . convertPrice($BSO) . "," . getTotal("S", $BSO) . "\n";
                             }
                             
 
                         }
-                        print "Order added.\n";
+                        if($debug){
+                            print "Order added.\n";
+                        }
                     }
                 }
             }
@@ -460,6 +572,7 @@ sub line_at_index{
 sub gen_orderbook{
     convertHashes();
     sortArrays();
+    #print "@OPEN_BUY_ORDERS\n@OPEN_SELL_ORDERS\n";
     printOrderbook();
     @OPEN_BUY_ORDERS = ();
     @OPEN_SELL_ORDERS = ();
@@ -503,7 +616,9 @@ while((defined line_at_index(*ORDERS, *O_INDEX, $orderline)) || (defined line_at
     if(!defined $currOrder){
         
         $pointer = $t_line[1];
-        print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currTrade";
+        if($debug){
+            print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currTrade";
+        }
         $tradeline++;
         processLine($currTrade, 0);
         if($debug){
@@ -515,7 +630,9 @@ while((defined line_at_index(*ORDERS, *O_INDEX, $orderline)) || (defined line_at
     }elsif(!defined $currTrade){
        
         $pointer = $o_line[1];
-        print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currOrder";
+        if($debug){
+            print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currOrder";
+        }
         $orderline++;
         processLine($currOrder, 1);
         if($debug){
@@ -528,8 +645,9 @@ while((defined line_at_index(*ORDERS, *O_INDEX, $orderline)) || (defined line_at
     
     if(($t_line[1] - $pointer) < ($o_line[1] - $pointer)){
         $pointer = $t_line[1];
-        
-        print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currTrade";
+        if($debug){
+            print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currTrade";
+        }
         $tradeline++;
         processLine($currTrade, 0);
         if($debug){
@@ -539,8 +657,9 @@ while((defined line_at_index(*ORDERS, *O_INDEX, $orderline)) || (defined line_at
         }
     }else{
         $pointer = $o_line[1];
-        
-        print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currOrder";
+        if($debug){
+            print "Pointer: $pointer OLINE: $orderline TLINE: $tradeline Line: $currOrder";
+        }
         $orderline++;
         processLine($currOrder, 1);
         if($debug){
@@ -553,11 +672,14 @@ while((defined line_at_index(*ORDERS, *O_INDEX, $orderline)) || (defined line_at
 
 #print line_at_index(*TRADES, *T_INDEX, 173);
 #print "\n";
-print Dumper \%{$OPEN_ORDERS};
-print "\n";
+# print Dumper \%{$OPEN_ORDERS};
+# print "\n";
 convertHashes();
 sortArrays();
-printOrderbook();
+if($debug){
+    printOrderbook();
+}
+
 #printBBOlist();
 exportBBOlist();
 #close files
